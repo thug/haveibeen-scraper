@@ -1,5 +1,7 @@
 from asyncio import gather, Semaphore, set_event_loop_policy, WindowsSelectorEventLoopPolicy, run
 from os import listdir
+from typing import Any
+
 from aiohttp import ClientSession
 from json import dumps, loads
 from platform import system
@@ -96,30 +98,36 @@ async def load_files() -> tuple[list[str], dict]:
     :return: (tuple[list[str], dict]]) - Lines to check (list[str]), configuration (dict)
     """
 
-    config: dict = {'thread_count': 50, 'file_name': 'input_emails.txt'}
+    console.rule("File Loader")
+
+    config: dict = {'thread_count': 50, 'file_name': 'input_emails.txt', 'rotating_proxy': ''}
     config_name: str = "config.json"
 
-    if config_name not in listdir(): open(config_name, "a").write(f"{dumps(config, indent=4)}")
-    if config["file_name"] not in listdir(): open(config["file_name"], "a").write("")
+    def create_file(file_name: str, file_contents: str | dict) -> None:
+        open(file_name, "a").write(file_contents)
+        console.log(f'[green bold]Created file "{file_name}"!')
+
+    if config_name not in listdir(): create_file(config_name, dumps(config, indent=4))
+    if config["file_name"] not in listdir(): create_file(config["file_name"], "")
 
     async with aiofiles.open(config["file_name"], "r") as file:
         email_regex = compile(r"([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)")
         lines = [mail.group(0) for mail in finditer(email_regex, "\n".join(await file.readlines()))]
 
+    console.log(f"[cyan]{len(lines)} emails [white]loaded from input file.")
     return lines, loads(open(config_name, "r").read())
 
 
 async def execute():  # Todo - clean this up
     lines, configuration = await load_files()
     console.log(f"[white]Config loaded! [red bold]{configuration}")
-    console.log(f"[cyan]{len(lines)} emails [white]loaded from input file.")
     console.rule("Starting Checking Process...")
 
     async with ClientSession() as sess:
         await gather_tasks(configuration["thread_count"], *[check_breaches(sess, mail) for mail in lines])
 
     console.rule(title="Data Breach Stats")
-    console.print_json(dumps(breach_cache))  # Todo - replace this with a proper output
+    console.print({name: count for name, count in sorted(breach_cache.items(), key=lambda item: item[1], reverse=True)})
 
 
 if __name__ == "__main__":
