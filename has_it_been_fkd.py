@@ -8,22 +8,6 @@ import aiofiles
 breach_cache: dict[str: int] = {}
 
 
-class JsonConfig:
-    """ Basic json config loader """
-
-    def __init__(self, config_name: str = "config.json"):
-        self.config_name: str = config_name
-        self.config: dict = {"thread_count": 50, "file_name": "input_emails.txt", }
-
-        self.load()
-
-    def load(self) -> None:
-        if self.config_name not in listdir():
-            return open(self.config_name, "a").write(f"{dumps(self.config, indent=4)}")
-
-        self.config = loads(open(self.config_name, "r").read())
-
-
 async def gather_tasks(max_workers: int, *tasks) -> gather:
     """
     Create semaphore for thread handling
@@ -99,19 +83,29 @@ async def check_breaches(session: ClientSession, email_address: str) -> tuple[bo
         return True, [db['Name'] for db in data_breaches], len(data_breaches)
 
 
-async def execute():  # Todo - clean this up
-    json_config: JsonConfig = JsonConfig()
-    config: dict = json_config.config
+async def load_files() -> tuple[list[str], dict]:
+    """
+    Load config & emails and return them in a tuple to be used in execution.
 
-    if config["file_name"] not in listdir(): 
-        open(config["file_name"], "a").write("")
-        exit("Add lines to file to continue")
+    :return: (tuple[list[str], dict]]) - Lines to check (list[str]), configuration (dict)
+    """
+    config: dict = {'thread_count': 50, 'file_name': 'input_emails.txt'}
+    config_name: str = "config.json"
+
+    if config_name not in listdir(): open(config_name, "a").write(f"{dumps(config, indent=4)}")
+    if config["file_name"] not in listdir(): open(config["file_name"], "a").write("")
 
     async with aiofiles.open(config["file_name"], "r") as file:
         lines = [line.strip() for line in await file.readlines() if "@" in line]
 
+    return lines, loads(open(config_name, "r").read())
+
+
+async def execute():
+    lines, configuration = await load_files()
+
     async with ClientSession() as sess:
-        await gather_tasks(config["thread_count"], *[check_breaches(sess, mail) for mail in lines])
+        await gather_tasks(configuration["thread_count"], *[check_breaches(sess, mail) for mail in lines])
 
     print(dumps(breach_cache))
 
