@@ -1,7 +1,7 @@
 from asyncio import gather, Semaphore, set_event_loop_policy, WindowsSelectorEventLoopPolicy, run
 from os import listdir
 from aiohttp import ClientSession
-from json import dumps
+from json import dumps, loads
 from platform import system
 import aiofiles
 
@@ -9,23 +9,24 @@ import aiofiles
 class JsonConfig:
     """ Basic json config loader """
 
-    def __init__(self, config_name: str = "config.txt"):
+    def __init__(self, config_name: str = "config.json"):
         self.config_name: str = config_name
         self.config: dict = {
             "thread_count": 50,
             "file_name": "input_emails.txt",
         }
 
-    def load(self):
-        ...
+    def load(self) -> None:
+        if self.config_name not in listdir(): 
+            return open(self.config_name, "a").write(f"{dumps(self.config, indent=4)}")
 
-    def save(self):
-        ...
+        self.config = loads(open(self.config_name, "r").read())
 
 
 json_config: JsonConfig = JsonConfig()
-configuration: dict = json_config.config
+json_config.load()
 
+configuration: dict = json_config.config
 breach_cache: dict[str: int] = {}
 
 
