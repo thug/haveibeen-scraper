@@ -3,6 +3,7 @@ from os import listdir
 from aiohttp import ClientSession
 from json import dumps, loads
 from platform import system
+from re import compile, finditer
 import aiofiles
 
 breach_cache: dict[str: int] = {}
@@ -66,6 +67,10 @@ async def check_breaches(session: ClientSession, email_address: str) -> tuple[bo
 
     async with session.get(url=base_url, headers=headers) as lookup:
         output_data: dict = {"email": email_address, "databases": None, "database_list": []}
+        if "Cloudflare to restrict access" in await lookup.text():
+            print("Cloudflare blocked")
+            return await check_breaches(session, email_address)
+
         if lookup.status == 404:
             print(dumps(output_data))
             return
@@ -96,12 +101,13 @@ async def load_files() -> tuple[list[str], dict]:
     if config["file_name"] not in listdir(): open(config["file_name"], "a").write("")
 
     async with aiofiles.open(config["file_name"], "r") as file:
-        lines = [line.strip() for line in await file.readlines() if "@" in line]
+        email_regex = compile(r"([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)")
+        lines = [mail.group(0) for mail in finditer(email_regex, "\n".join(await file.readlines()))]
 
     return lines, loads(open(config_name, "r").read())
 
 
-async def execute():
+async def execute():  # Todo - clean this up
     lines, configuration = await load_files()
 
     async with ClientSession() as sess:
