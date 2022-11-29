@@ -4,8 +4,10 @@ from aiohttp import ClientSession
 from json import dumps, loads
 from platform import system
 from re import compile, finditer
+from rich.console import Console
 import aiofiles
 
+console: Console = Console()
 breach_cache: dict[str: int] = {}
 
 
@@ -68,11 +70,11 @@ async def check_breaches(session: ClientSession, email_address: str) -> tuple[bo
     async with session.get(url=base_url, headers=headers) as lookup:
         output_data: dict = {"email": email_address, "databases": None, "database_list": []}
         if "Cloudflare to restrict access" in await lookup.text():
-            print("Cloudflare blocked")
+            console.log(f"[red bold]CLOUDFLARE! [white]Blocked [magenta bold]request [white]for [cyan]{email_address}")
             return await check_breaches(session, email_address)
 
         if lookup.status == 404:
-            print(dumps(output_data))
+            console.log(f"[red bold]NO BREACHES! [cyan]{email_address} [white]has not been found in any public data breaches.")
             return
 
         data = await lookup.json()
@@ -83,8 +85,7 @@ async def check_breaches(session: ClientSession, email_address: str) -> tuple[bo
         output_data["databases"] = len(data_breaches)
         output_data["database_list"] = [database["Name"] for database in data_breaches]
 
-        print(dumps(output_data))
-
+        console.log(f"[green bold]BREACHED! [cyan]{email_address} [white]has been found in [green bold]{output_data['databases']} databases[white]!")
         return True, [db['Name'] for db in data_breaches], len(data_breaches)
 
 
@@ -94,6 +95,7 @@ async def load_files() -> tuple[list[str], dict]:
 
     :return: (tuple[list[str], dict]]) - Lines to check (list[str]), configuration (dict)
     """
+
     config: dict = {'thread_count': 50, 'file_name': 'input_emails.txt'}
     config_name: str = "config.json"
 
@@ -109,11 +111,15 @@ async def load_files() -> tuple[list[str], dict]:
 
 async def execute():  # Todo - clean this up
     lines, configuration = await load_files()
+    console.log(f"[white]Config loaded! [red bold]{configuration}")
+    console.log(f"[cyan]{len(lines)} emails [white]loaded from input file.")
+    console.rule("Starting Checking Process...")
 
     async with ClientSession() as sess:
         await gather_tasks(configuration["thread_count"], *[check_breaches(sess, mail) for mail in lines])
 
-    print(dumps(breach_cache))
+    console.rule(title="Data Breach Stats")
+    console.print_json(dumps(breach_cache))  # Todo - replace this with a proper output
 
 
 if __name__ == "__main__":
