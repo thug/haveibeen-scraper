@@ -5,29 +5,23 @@ from json import dumps, loads
 from platform import system
 import aiofiles
 
+breach_cache: dict[str: int] = {}
+
 
 class JsonConfig:
     """ Basic json config loader """
 
     def __init__(self, config_name: str = "config.json"):
         self.config_name: str = config_name
-        self.config: dict = {
-            "thread_count": 50,
-            "file_name": "input_emails.txt",
-        }
+        self.config: dict = {"thread_count": 50, "file_name": "input_emails.txt", }
+
+        self.load()
 
     def load(self) -> None:
         if self.config_name not in listdir():
             return open(self.config_name, "a").write(f"{dumps(self.config, indent=4)}")
 
         self.config = loads(open(self.config_name, "r").read())
-
-
-json_config: JsonConfig = JsonConfig()
-json_config.load()
-
-configuration: dict = json_config.config
-breach_cache: dict[str: int] = {}
 
 
 async def gather_tasks(max_workers: int, *tasks) -> gather:
@@ -105,19 +99,25 @@ async def check_breaches(session: ClientSession, email_address: str) -> tuple[bo
         return True, [db['Name'] for db in data_breaches], len(data_breaches)
 
 
-async def execute():
-    file_name = configuration["file_name"]
+async def execute():  # Todo - clean this up
+    json_config: JsonConfig = JsonConfig()
+    config: dict = json_config.config
 
-    if file_name not in listdir(): open(file_name, "a").write(""); exit("Add lines to file to continue")
-    async with aiofiles.open(file_name, "r") as file:
+    if config["file_name"] not in listdir(): 
+        open(config["file_name"], "a").write("")
+        exit("Add lines to file to continue")
+
+    async with aiofiles.open(config["file_name"], "r") as file:
         lines = [line.strip() for line in await file.readlines() if "@" in line]
 
     async with ClientSession() as sess:
-        await gather_tasks(configuration["thread_count"], *[check_breaches(sess, mail) for mail in lines])
+        await gather_tasks(config["thread_count"], *[check_breaches(sess, mail) for mail in lines])
 
     print(dumps(breach_cache))
 
 
 if __name__ == "__main__":
-    if system() == 'Windows': set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+    if system() == 'Windows':
+        set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+
     run(execute())
