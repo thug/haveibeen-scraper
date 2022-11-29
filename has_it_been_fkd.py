@@ -17,7 +17,7 @@ class JsonConfig:
         }
 
     def load(self) -> None:
-        if self.config_name not in listdir(): 
+        if self.config_name not in listdir():
             return open(self.config_name, "a").write(f"{dumps(self.config, indent=4)}")
 
         self.config = loads(open(self.config_name, "r").read())
@@ -73,32 +73,34 @@ async def check_breaches(session: ClientSession, email_address: str) -> tuple[bo
 
     base_url: str = f"https://haveibeenpwned.com/unifiedsearch/{email_address.replace('@', '%40')}"
     headers: dict[str: str] = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0',
-        'Accept': '*/*',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': 'https://haveibeenpwned.com/',
-        'X-Requested-With': 'XMLHttpRequest',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin',
-        'Sec-GPC': '1'
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:107.0) Gecko/20100101 Firefox/107.0",
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Referer": "https://haveibeenpwned.com/",
+        "X-Requested-With": "XMLHttpRequest",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-GPC": "1"
     }
 
     async with session.get(url=base_url, headers=headers) as lookup:
-        if lookup.status != 200: return await check_breaches(session, email_address)
+        output_data: dict = {"email": email_address, "databases": None, "database_list": []}
+        if lookup.status == 404:
+            print(dumps(output_data))
+            return
 
         data = await lookup.json()
         data_breaches: str = data["Breaches"]
 
         [await count_breach(database["Name"]) for database in data_breaches]
 
-        print(dumps({
-            "email": email_address,
-            "databases": len(data_breaches),
-            "database_list": [database["Name"] for database in data_breaches]
-        }))
+        output_data["databases"] = len(data_breaches)
+        output_data["database_list"] = [database["Name"] for database in data_breaches]
+
+        print(dumps(output_data))
 
         return True, [db['Name'] for db in data_breaches], len(data_breaches)
 
