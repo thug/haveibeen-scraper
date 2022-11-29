@@ -1,11 +1,11 @@
 from asyncio import gather, Semaphore, set_event_loop_policy, WindowsSelectorEventLoopPolicy, run
 from os import listdir
 from typing import Any
-
 from aiohttp import ClientSession
 from json import dumps, loads
 from platform import system
 from re import compile, finditer
+from aiohttp_proxy import ProxyConnector
 from rich.console import Console
 import aiofiles
 
@@ -103,7 +103,7 @@ async def load_files() -> tuple[list[str], dict]:
     config: dict = {'thread_count': 50, 'file_name': 'input_emails.txt', 'rotating_proxy': ''}
     config_name: str = "config.json"
 
-    def create_file(file_name: str, file_contents: str | dict) -> None:
+    def create_file(file_name: str, file_contents: Any) -> None:
         open(file_name, "a").write(file_contents)
         console.log(f'[green bold]Created file "{file_name}"!')
 
@@ -118,16 +118,19 @@ async def load_files() -> tuple[list[str], dict]:
     return lines, loads(open(config_name, "r").read())
 
 
-async def execute():  # Todo - clean this up
+async def execute() -> None:
     lines, configuration = await load_files()
     console.log(f"[white]Config loaded! [red bold]{configuration}")
     console.rule("Starting Checking Process...")
 
-    async with ClientSession() as sess:
-        await gather_tasks(configuration["thread_count"], *[check_breaches(sess, mail) for mail in lines])
+    connector = ProxyConnector.from_url(configuration["rotating_proxy"])
+    async with ClientSession(connector=connector) as client_session:
+        await gather_tasks(configuration["thread_count"], *[check_breaches(client_session, mail) for mail in lines])
 
     console.rule(title="Data Breach Stats")
-    console.print({name: count for name, count in sorted(breach_cache.items(), key=lambda item: item[1], reverse=True)})
+    sorted_cache = {name: count for name, count in sorted(breach_cache.items(), key=lambda i: i[1], reverse=True)}
+
+    console.print(sorted_cache)
 
 
 if __name__ == "__main__":
