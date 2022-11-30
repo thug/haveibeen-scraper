@@ -19,7 +19,6 @@ async def gather_tasks(max_workers: int, *tasks) -> gather:
 
     :param max_workers: (int) - Max workers for semaphore
     :param tasks: (coroutine) - Tasks to run through async semaphore
-
     :return: (asyncio.gather)
     """
     semaphore = Semaphore(max_workers)
@@ -50,7 +49,6 @@ async def check_breaches(session: ClientSession, email_address: str) -> tuple[bo
 
     :param session: (ClientSession) - Session you're running the requests on
     :param email_address: (str) - email_address
-
     :return: (tuple[bool, list, int]) - Breached (bool), Breaches (list), Breaches found (int)
     """
 
@@ -71,7 +69,7 @@ async def check_breaches(session: ClientSession, email_address: str) -> tuple[bo
 
     async with session.get(url=base_url, headers=headers) as lookup:
         output_data: dict = {"email": email_address, "databases": None, "database_list": []}
-        if "Cloudflare to restrict access" in await lookup.text():
+        if ("Cloudflare to restrict access" in await lookup.text()) or (lookup.status == 433):
             console.log(f"[red bold]CLOUDFLARE! [white]Blocked [magenta bold]request [white]for [cyan]{email_address}")
             return await check_breaches(session, email_address)
 
