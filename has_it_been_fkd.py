@@ -90,7 +90,7 @@ async def check_breaches(session: ClientSession, email_address: str) -> tuple[bo
         output_data["databases"] = len(data_breaches)
         output_data["database_list"] = [database["Name"] for database in data_breaches]
 
-        console.log(f"{prefix} [cyan]{email_address} [white]has been found in [green bold]{output_data['databases']} databases[white]!")
+        console.log(f"{prefix} [cyan]{email_address} [white]has been found in [green bold]{output_data['databases']:,} databases[white]!")
         return True, [db['Name'] for db in data_breaches], len(data_breaches)
 
 
@@ -109,7 +109,7 @@ async def load_files() -> tuple[list[str], dict]:
     def create_file(file_name: str, file_contents: Any) -> None:
         open(file_name, "a").write(file_contents)
         console.log(f'[green bold]Created file "{file_name}"!')
-
+    
     if config_name not in listdir(): create_file(config_name, dumps(config, indent=4))
     if config["file_name"] not in listdir(): create_file(config["file_name"], "")
 
@@ -117,7 +117,7 @@ async def load_files() -> tuple[list[str], dict]:
         email_regex = compile(r"([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)")
         lines = [mail.group(0) for mail in finditer(email_regex, "\n".join(await file.readlines()))]
 
-    console.log(f"[cyan]{len(lines)} emails [white]loaded from input file.")
+    console.log(f"[cyan]{len(lines):,} emails [white]loaded from input file.")
     return lines, loads(open(config_name, "r").read())
 
 
