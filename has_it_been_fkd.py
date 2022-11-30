@@ -68,14 +68,19 @@ async def check_breaches(session: ClientSession, email_address: str) -> tuple[bo
     }
 
     async with session.get(url=base_url, headers=headers) as lookup:
+        prefix: str = "[green bold]BREACHED!"
         output_data: dict = {"email": email_address, "databases": None, "database_list": []}
-        if ("Cloudflare to restrict access" in await lookup.text()) or (lookup.status == 433):
-            console.log(f"[red bold]CLOUDFLARE! [white]Blocked [magenta bold]request [white]for [cyan]{email_address}")
-            return await check_breaches(session, email_address)
 
-        if lookup.status == 404:
-            console.log(f"[red bold]NO BREACHES! [cyan]{email_address} [white]has not been found in any public data breaches.")
-            return
+        match lookup.status:
+            case 429 | 433:
+                prefix = '[red bold]CLOUDFLARE!' if ('Cloudflare to restrict access' in await lookup.text()) else '[red bold]RATELIMIT!'
+                console.log(f"{prefix} [white]Blocked [magenta bold]request [white]for [cyan]{email_address}")
+                return await check_breaches(session, email_address)
+
+            case 404:
+                prefix = "[red bold]NO BREACHES!"
+                console.log(f"{prefix} [cyan]{email_address} [white]has not been found in any public data breaches.")
+                return
 
         data = await lookup.json()
         data_breaches: str = data["Breaches"]
@@ -85,7 +90,7 @@ async def check_breaches(session: ClientSession, email_address: str) -> tuple[bo
         output_data["databases"] = len(data_breaches)
         output_data["database_list"] = [database["Name"] for database in data_breaches]
 
-        console.log(f"[green bold]BREACHED! [cyan]{email_address} [white]has been found in [green bold]{output_data['databases']} databases[white]!")
+        console.log(f"{prefix} [cyan]{email_address} [white]has been found in [green bold]{output_data['databases']} databases[white]!")
         return True, [db['Name'] for db in data_breaches], len(data_breaches)
 
 
@@ -118,6 +123,7 @@ async def load_files() -> tuple[list[str], dict]:
 
 async def execute() -> None:
     lines, configuration = await load_files()
+
     console.log(f"[white]Config loaded! [red bold]{configuration}")
     console.rule("Starting Checking Process...")
 
